@@ -52,6 +52,7 @@ void Chip8::cycle() {
     case 0:
       switch (NN) {
         case 0xE0:
+          display_array.fill(false);
           break;
 
         case 0xEE:
@@ -66,8 +67,6 @@ void Chip8::cycle() {
 
       break;
     
-
-  
     case 1:
       pc = NNN;
       break;
@@ -156,12 +155,15 @@ void Chip8::cycle() {
         }
 
         default:
+          break;
 
       }
+      break;
 
     case 9:
       if (V[X] != V[Y]) pc += 2;
       break;
+
     case 0xA:
       I = NNN;
       break;
@@ -176,9 +178,31 @@ void Chip8::cycle() {
       break;
     }
 
-    case 0xD:
-      // TODO: Draw with a library
+    case 0xD: {
+      std::uint8_t start_x = V[X] % DISPLAY_WIDTH;
+      std::uint8_t start_y = V[Y] % DISPLAY_HEIGHT;
+      V[0xF] = 0;
+
+      for (std::size_t row = 0; row < N; ++row) {
+        std::uint8_t sprite_byte = memory[(I + row) & 0xFFF];
+        for (std::size_t col = 0; col < 8; ++col) {
+          if (start_x + col >= DISPLAY_WIDTH || start_y + row >= DISPLAY_HEIGHT) {
+            continue;
+          }
+          if (sprite_byte & (0x80 >> col)) {
+            std::size_t x = start_x + col;
+            std::size_t y = start_y + row;
+            std::size_t index = y * DISPLAY_WIDTH + x;
+
+            if (display_array[index]) {
+              V[0xF] = 1;
+            }
+            display_array[index] = !display_array[index];
+          }
+        }
+      }
       break;
+    }
 
     case 0xE:
       switch(NN) {
@@ -187,11 +211,11 @@ void Chip8::cycle() {
 
         case 0xA1:
           break;
+
+        default:
+          break;
       }
 
-      default:
-        break;
-      
       break;
 
     case 0xF:
@@ -283,6 +307,4 @@ void Chip8::dump_memory(std::uint16_t start, std::size_t count) const {
   std::cout << '\n' << std::dec;
 
 }
-
-
 
