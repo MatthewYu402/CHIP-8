@@ -52,7 +52,6 @@ void Chip8::cycle() {
     case 0:
       switch (NN) {
         case 0xE0:
-        // clear screen
           break;
 
         case 0xEE:
@@ -117,22 +116,44 @@ void Chip8::cycle() {
           V[X] ^= V[Y];
           break;
 
-        case 4:
-          break;
+        case 4: {
+          unsigned int sum = V[X] + V[Y];
+          V[X] = sum;
 
-        case 5:
+          (sum > 255) ? V[0xF] = 1 : V[0xF] = 0;
           break;
+        }
 
-        case 6:
+        case 5: {
+          std::uint8_t flag = V[X] >= V[Y];
+          V[X] -= V[Y];
+          V[0xF] = flag;
+          break;
+        }
+
+        // QUIRK: Shifts V[X] in place; original COSMAC VIP shifted V[Y] into V[X]
+        case 6: {
+          std::uint8_t shifted_bit = (V[X] & 0x1);
           V[X] >>= 1;
+          V[0xF] = shifted_bit;
+          break;
+        }
+
+        case 7: {
+          std::uint8_t flag = V[Y] >= V[X];
+          V[X] = V[Y] - V[X];
+          V[0xF] = flag;
           break;
 
-        case 7:
-          break;
+        }
 
-        case 0xE: 
+        // QUIRK: Shifts V[X] in place; original COSMAC VIP shifted V[Y] into V[X]
+        case 0xE: {
+          std::uint8_t shifted_bit = (V[X] & 0x80) >> 7;
           V[X] <<= 1;
+          V[0xF] = shifted_bit;
           break;
+        }
 
         default:
 
@@ -149,10 +170,11 @@ void Chip8::cycle() {
       pc = NNN + V[0]; // QUIRK:
       break;
 
-    case 0xC:
-      // TODO: Use the rand function
-      //V[X] = (use rand function) & NN;
+    case 0xC: {
+      std::uint8_t random_byte = static_cast<uint8_t>(dist(gen));
+      V[X] = random_byte & NN;
       break;
+    }
 
     case 0xD:
       // TODO: Draw with a library
@@ -194,20 +216,36 @@ void Chip8::cycle() {
           I += V[X];
           break;
 
-        case 0x29:
-          // TODO: Address of font sprite for hex digit in V[X]
+        case 0x29: {
+          std::uint8_t digit = V[X] & 0xF;
+          I = FONT_ADDRESS + 5 * digit;
           break;
+        }
 
-        case 0x33:
-          // Store binary coded decimal
+        case 0x33: {
+          std::uint8_t hundred = V[X] / 100;
+          std::uint8_t tens = (V[X] / 10) % 10;
+          std::uint8_t ones = V[X] % 10;
+          memory[I] = hundred;
+          memory[(I + 1) & 0xFFF] = tens;
+          memory[(I + 2) & 0xFFF] = ones;
           break;
+        }
 
+        // QUIRK: I is left unchanged; the original COSMAC VIP leave I = I + X + 1
         case 0x55:
-          // TODO: Store V[0]
+          // store
+          for (std::size_t i = 0; i <= X; ++i) {
+            memory[(I + i) & 0xFFF] = V[i];
+          }
           break;
 
+        // QUIRK: I is left unchanged; the original COSMAC VIP leave I = I + X + 1
         case 0x65:
-          // TODO: Store V[0]
+          // load
+          for (std::size_t i = 0; i <= X; ++i) {
+            V[i] = memory[(I + i) & 0xFFF];
+          }
           break;
 
         default:

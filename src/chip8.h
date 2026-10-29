@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <array>
+#include <random>
 
 class Chip8 {
 public:
@@ -46,5 +47,8 @@ private:
   std::uint8_t sp{};                   // stack pointer
   std::uint8_t delay_timer{}, sound_timer{};
 
+  // Random generator
+  std::mt19937 gen{std::random_device{}()};
+  std::uniform_int_distribution<int> dist{0, 255};
 };
   
