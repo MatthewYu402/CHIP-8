@@ -20,8 +20,9 @@ public:
   void cycle();
   void dump_memory(std::uint16_t start, std::size_t count) const;
   const Display& get_display_array() const { return display_array; }
+  bool is_halted() const { return halted; }
 
-private: 
+private:
   // Compile-time constants
   static constexpr std::uint16_t  START_ADDRESS = 0x200;
   static constexpr std::size_t    MEMORY_SIZE = 4096;
@@ -52,10 +53,11 @@ private:
   std::uint8_t memory[MEMORY_SIZE]{};  // 4KB
   std::uint8_t V[16]{};                // V0-VF, 8 bits each
   std::uint16_t I{};                   // index register
-  std::uint16_t pc{START_ADDRESS};     // program counter
+  std::uint16_t pc{ START_ADDRESS };   // program counter
   std::uint16_t stack[16]{};           // stack
   std::uint8_t sp{};                   // stack pointer
   std::uint8_t delay_timer{}, sound_timer{};
+  bool halted{ false };
 
   // Random generator
   std::mt19937 gen{std::random_device{}()};
@@ -63,5 +65,8 @@ private:
 
   // Display array: 64 x 32 (2048)
   Display display_array{};
+
+  // Private function members
+  void halt(const char* reason, std::uint16_t opcode);
 };
   

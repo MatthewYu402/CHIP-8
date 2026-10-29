@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   //chip8.dump_memory(0x050, 80);
   //chip8.dump_memory(0x200, 132);
   
-  for (size_t i = 0; i < 300; ++i) {
+  for (size_t i = 0; i < 5000; ++i) {
     chip8.cycle();
   }
 

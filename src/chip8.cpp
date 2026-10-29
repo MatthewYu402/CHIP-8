@@ -22,7 +22,12 @@ bool Chip8::load_rom(const std::string& path) {
 
   // 2. Check if size exceeds 3584 bytes, not a valid program
   std::uintmax_t max_bytes = MEMORY_SIZE - START_ADDRESS;
-  std::uintmax_t f_size = std::filesystem::file_size(path);
+  std::error_code ec;
+  std::uintmax_t f_size = std::filesystem::file_size(path, ec);
+  if (ec) {
+    std::cerr << "invalid path: " << path << "error: " << ec.message() << '\n';
+    return false;
+  }
   if (max_bytes < f_size) {
     std::cerr<< "file exceeds memory capacity: " << f_size << '\n';
     return false;
@@ -35,9 +40,25 @@ bool Chip8::load_rom(const std::string& path) {
 }
 
 void Chip8::cycle() {
+  if (halted) return; 
+
+  // 0.1 Pre-fetch check
+  if (pc + 1 >= MEMORY_SIZE) {
+    halted = true;
+    std::cerr << std::hex <<"program counter goes beyond memory 0xFFF: " << std::setw(4) << 
+      std::setfill('0') << pc << '\n';
+    std::cerr << std::dec;
+    return;
+  }
+
   // 1. Fetch
   std::uint16_t opcode = (memory[pc] << 8) | memory[pc + 1];
   pc += 2;
+
+  if (opcode == 0x0000) {
+    halt("executed 0000 (pc probably in empty memory", opcode);
+    return;
+  }
 
   // 2. Decode
   std::uint8_t family_nib = (opcode & 0xF000) >> 12;
@@ -56,11 +77,16 @@ void Chip8::cycle() {
           break;
 
         case 0xEE:
-          pc = stack[sp];
+          if (sp == 0) {
+            halt("return with empty stack", opcode);
+            break;
+          }
           sp -= 1;
+          pc = stack[sp];
           break;
 
         default:
+          halt("unknown opcode", opcode);
           break;
           
       }
@@ -72,6 +98,10 @@ void Chip8::cycle() {
       break;
 
     case 2:
+      if (sp == 16) {
+        halt("stack overflow", opcode);
+        break;
+      }
       stack[sp] = pc;
       sp += 1;
       pc = NNN;
@@ -86,6 +116,10 @@ void Chip8::cycle() {
       break;
 
     case 5:
+      if (N != 0) {
+        halt("invalid opcode (last nibble must be 0)", opcode);
+        break;
+      }
       if (V[X] == V[Y]) pc += 2;
       break;
 
@@ -118,8 +152,7 @@ void Chip8::cycle() {
         case 4: {
           unsigned int sum = V[X] + V[Y];
           V[X] = sum;
-
-          (sum > 255) ? V[0xF] = 1 : V[0xF] = 0;
+          V[0xF] = sum > 255;
           break;
         }
 
@@ -155,12 +188,17 @@ void Chip8::cycle() {
         }
 
         default:
+          halt("unknown 8XY_ instruction", opcode);
           break;
 
       }
       break;
 
     case 9:
+      if (N != 0) {
+        halt("invalid opcode (last nibble must be 0)", opcode);
+        break;
+      }
       if (V[X] != V[Y]) pc += 2;
       break;
 
@@ -168,12 +206,13 @@ void Chip8::cycle() {
       I = NNN;
       break;
 
+    // QUIRK: COSMAC VIP jumps to NNN + V0; Chip-48 jumpts to XNN + VX
     case 0xB:
       pc = NNN + V[0]; // QUIRK:
       break;
 
     case 0xC: {
-      std::uint8_t random_byte = static_cast<uint8_t>(dist(gen));
+      std::uint8_t random_byte = static_cast<std::uint8_t>(dist(gen));
       V[X] = random_byte & NN;
       break;
     }
@@ -213,6 +252,7 @@ void Chip8::cycle() {
           break;
 
         default:
+          halt("unknown EX__ instruction", opcode);
           break;
       }
 
@@ -250,7 +290,7 @@ void Chip8::cycle() {
           std::uint8_t hundred = V[X] / 100;
           std::uint8_t tens = (V[X] / 10) % 10;
           std::uint8_t ones = V[X] % 10;
-          memory[I] = hundred;
+          memory[(I & 0xFFF)] = hundred;
           memory[(I + 1) & 0xFFF] = tens;
           memory[(I + 2) & 0xFFF] = ones;
           break;
@@ -273,8 +313,14 @@ void Chip8::cycle() {
           break;
 
         default:
+          halt("unknown FX__ instruction", opcode);
           break;
       }
+      break;
+
+    default:
+      halt("unknown opcode", 0);
+      break;
   }
 }
 
@@ -308,3 +354,10 @@ void Chip8::dump_memory(std::uint16_t start, std::size_t count) const {
 
 }
 
+void Chip8::halt(const char* reason, std::uint16_t opcode) {
+  halted = true;
+  std::cerr << std::hex << std::setfill('0');
+  std::cerr << "halt: " << reason << " 0x" << std::setw(4) << 
+    opcode << " at 0x" << std::setw(4) << pc - 2 << '\n';
+  std::cerr << std::dec << std::setfill(' ');
+}
