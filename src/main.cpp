@@ -10,7 +10,9 @@ int main(int argc, char*argv[]) {
   
   Chip8 chip8 = Chip8();
   chip8.load_rom(argv[1]);
-  chip8.dump_memory(0x200, 64);
+  //chip8.dump_memory(0x000, 0xA0);
+  //chip8.dump_memory(0x050, 80);
+  //chip8.dump_memory(0x200, 132);
 
   return 0;
 }

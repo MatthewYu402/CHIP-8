@@ -1,6 +1,6 @@
 # ── Compiler and flags ─────────────────────────────────────
-CXX      := g++
-CXXFLAGS := -std=c++17 -Wall -Wextra -MMD -MP
+CXX      := clang++
+CXXFLAGS := -std=c++20 -Wall -Wextra -MMD -MP -Wpedantic -Wimplicit-fallthrough
 LDFLAGS  :=
 LDLIBS   :=
 

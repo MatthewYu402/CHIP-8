@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdint>
 #include <cstddef>
+#include <array>
 
 class Chip8 {
 public:
@@ -11,9 +12,31 @@ public:
   void dump_memory(std::uint16_t start, std::size_t count) const;
 
 private: 
-  // Compile-time constnats
+  // Compile-time constants
   static constexpr std::uint16_t  START_ADDRESS = 0x200;
   static constexpr std::size_t    MEMORY_SIZE = 4096;
+  static constexpr std::uint16_t  FONT_ADDRESS = 0x050;
+  static constexpr auto FONT = std::to_array<std::uint8_t>({
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+  });
+
+  static_assert(FONT.size() == 80);
+  static_assert(FONT_ADDRESS + FONT.size() <= START_ADDRESS);
   
   std::uint8_t memory[MEMORY_SIZE]{};  // 4KB
   std::uint8_t V[16]{};                // V0-VF, 8 bits each
@@ -21,7 +44,7 @@ private:
   std::uint16_t pc{START_ADDRESS};     // program counter
   std::uint16_t stack[16]{};           // stack
   std::uint8_t sp{};                   // stack pointer
-  std::uint8_t delay_timer{}, sound_timer{}; 
+  std::uint8_t delay_timer{}, sound_timer{};
 
 };
   
