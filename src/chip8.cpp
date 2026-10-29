@@ -246,9 +246,11 @@ void Chip8::cycle() {
     case 0xE:
       switch(NN) {
         case 0x9E:
+          if (key_state[V[X] & 0xF]) pc += 2;
           break;
 
         case 0xA1:
+          if (!key_state[V[X] & 0xF]) pc += 2;
           break;
 
         default:
@@ -264,9 +266,19 @@ void Chip8::cycle() {
           V[X] = delay_timer;
           break;
         
-        case 0x0A:
-          // TODO: Key Press
+        case 0x0A: {
+          bool found = false;
+          for (std::size_t i = 0; i < key_state.size(); ++i) {
+            if (key_state[i]) {
+              V[X] = static_cast<std::uint8_t>(i);
+              found = true;
+              break;
+            }
+          }
+          if (!found) pc -= 2;
+          
           break;
+          }
 
         case 0x15:
           delay_timer = V[X];
@@ -361,3 +373,13 @@ void Chip8::halt(const char* reason, std::uint16_t opcode) {
     opcode << " at 0x" << std::setw(4) << pc - 2 << '\n';
   std::cerr << std::dec << std::setfill(' ');
 }
+
+void Chip8::set_key(std::size_t index, bool pressed) {
+    if (index >= KEY_COUNT) {
+      std::cerr << "index is larger than 16: " << index << '\n';
+      return;
+    }
+
+    key_state[index] = pressed;
+  }
+
