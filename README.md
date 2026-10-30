@@ -47,24 +47,57 @@ Today CHIP-8 is the standard first emulator project, because it covers the core 
 
 ## Building and Running
 
-<!-- TODO: fill in once the language and libraries are chosen -->
-
 **Requirements**
 
-- Language / toolchain: _TBD_
-- Graphics, input, and audio library: _TBD_ (e.g., SDL2, pygame, HTML canvas)
+- A C++20 compiler (developed with `clang++` on macOS)
+- `make`
+- [SDL2](https://wiki.libsdl.org/SDL2/FrontPage) for graphics and input
+
+On macOS with Homebrew:
+
+```sh
+brew install sdl2
+```
+
+The Makefile locates SDL2 with `sdl2-config`, so no paths need to be edited.
 
 **Build**
 
+```sh
+make
 ```
-TBD
-```
+
+The executable is written to `build/chip8`. To rebuild from scratch, run `make clean && make`.
 
 **Run**
 
+```sh
+make run ROM=roms/path/to/rom.ch8
 ```
-TBD <path/to/rom.ch8>
+
+or run the executable directly:
+
+```sh
+./build/chip8 roms/path/to/rom.ch8
 ```
+
+Many ROM filenames contain spaces or brackets, so quote the path:
+
+```sh
+make run ROM="roms/chip8-roms/games/Pong (1 player).ch8"
+```
+
+Press **Esc** or close the window to quit, and press **0** to restart the ROM (see [Controls](#controls)).
+
+**Getting ROMs**
+
+Classic games are available in [kripod/chip8-roms](https://github.com/kripod/chip8-roms). Clone it into `roms/`, which is gitignored:
+
+```sh
+git clone https://github.com/kripod/chip8-roms roms/chip8-roms
+```
+
+Only plain CHIP-8 ROMs are supported. SUPER-CHIP and XO-CHIP programs halt with an "unknown opcode" message.
 
 ### Controls
 
@@ -82,6 +115,19 @@ The original 16-key hex keypad is mapped to the left side of a QWERTY keyboard:
 │ A │ 0 │ B │ F │   │ Z │ X │ C │ V │
 └───┴───┴───┴───┘   └───┴───┴───┴───┘
 ```
+
+Keys are matched by **physical position** (SDL scancodes), so the grid stays the same on non-QWERTY layouts such as AZERTY.
+
+**Emulator controls** (not part of the CHIP-8 keypad):
+
+| Key | Action |
+|---|---|
+| **0** | Restart the current ROM from scratch |
+| **Esc** | Quit |
+
+The **0** key on your keyboard is not CHIP-8 key `0`; that one is **X**.
+
+Example: in Pong, the left paddle uses CHIP-8 keys `1` (up) and `4` (down), which are **1** and **Q** on the keyboard.
 
 ---
 
@@ -186,15 +232,33 @@ Building the opcode with a shift and OR, rather than reading two bytes directly 
 
 ### Timing
 
-Each frame (at 60 frames per second), the emulator:
+The main loop runs at **60 frames per second**. Each frame, the emulator:
 
 1. Reads keyboard input
-2. Executes about 10 instructions (roughly 600 instructions per second)
-3. Decrements the timers
-4. Draws the display
-5. Plays the tone if `ST > 0`
+2. Executes `CYCLES_PER_FRAME` instructions (default 10, so roughly 600 instructions per second)
+3. Decrements the timers once (`tick_timers()`)
+4. Turns the beep on or off depending on whether `ST > 0`
+5. Draws the display
+6. Sleeps for the rest of the ~16.67 ms frame
 
-The original hardware had no fixed instruction rate; ~500–1000 instructions per second suits most programs.
+The timers are ticked by the frame loop, not by the CPU, so changing the instruction speed never changes how fast the timers count down. The original hardware had no fixed instruction rate; ~500–1000 instructions per second suits most programs.
+
+### Sound
+
+The beep is a 440 Hz square wave generated in an SDL audio callback (44,100 samples per second, 16-bit mono, 512-sample buffer). The callback only ever produces the wave; the main loop decides whether it is heard by pausing or unpausing the audio device each frame. Because the main thread never touches the callback's state while the device is running, no locking is needed.
+
+### Configuration
+
+These settings are constants at the top of `main.cpp`:
+
+| Constant | Default | Meaning |
+|---|---|---|
+| `SCALE` | 15 | Window size multiplier (64×32 → 960×480) |
+| `CYCLES_PER_FRAME` | 10 | Instructions executed per frame (CPU speed) |
+| `TARGET_FPS` | 60 | Frame rate; also the timer rate |
+| `COLOR_ON` / `COLOR_OFF` | white / black | Pixel colors (ARGB) |
+
+Pitch and volume are fields of `BeepState` (440 Hz, volume 3000 of 32767).
 
 ---
 
@@ -229,7 +293,7 @@ The original hardware had no fixed instruction rate; ~500–1000 instructions pe
 | `EX9E` | `SKP VX` | Skip the next instruction if the key in `VX` is pressed. |
 | `EXA1` | `SKNP VX` | Skip the next instruction if the key in `VX` is not pressed. |
 | `FX07` | `LD VX, DT` | `VX = DT`. |
-| `FX0A` | `LD VX, K` | Wait until a key is pressed, then store it in `VX`. Execution halts; timers keep running. |
+| `FX0A` | `LD VX, K` | Wait until a key is pressed **and released**, then store it in `VX` (COSMAC VIP behavior). Execution halts; timers keep running. |
 | `FX15` | `LD DT, VX` | `DT = VX`. |
 | `FX18` | `LD ST, VX` | `ST = VX`. |
 | `FX1E` | `ADD I, VX` | `I += VX`. |
@@ -248,25 +312,35 @@ CHIP-48 (1990) changed the behavior of several instructions, and later programs 
 
 | Instruction | COSMAC VIP (original) | CHIP-48 / SCHIP | This emulator |
 |---|---|---|---|
-| `8XY6` / `8XYE` | Sets `VX = VY`, then shifts | Shifts `VX` in place; ignores `VY` | _TBD_ |
-| `FX55` / `FX65` | `I` is incremented (ends at `I + X + 1`) | `I` is unchanged | _TBD_ |
-| `BNNN` | Jumps to `NNN + V0` | Jumps to `XNN + VX` | _TBD_ |
-| `8XY1` / `8XY2` / `8XY3` | Resets `VF` to 0 | `VF` unchanged | _TBD_ |
-| `DXYN` | Waits for vertical blank (max ~60 draws/sec) | No wait | _TBD_ |
+| `8XY6` / `8XYE` | Sets `VX = VY`, then shifts | Shifts `VX` in place; ignores `VY` | CHIP-48 |
+| `FX55` / `FX65` | `I` is incremented (ends at `I + X + 1`) | `I` is unchanged | CHIP-48 |
+| `BNNN` | Jumps to `NNN + V0` | Jumps to `XNN + VX` | COSMAC VIP |
+| `8XY1` / `8XY2` / `8XY3` | Resets `VF` to 0 | `VF` unchanged | CHIP-48 |
+| `DXYN` | Waits for vertical blank (max ~60 draws/sec) | No wait | No wait |
 | Sprites at screen edges | Clipped | Clipped | Clipped |
 
-<!-- TODO: fill in the last column, or document how to configure each quirk -->
+The current behavior is a mix of both platforms. The plan is to make each quirk configurable, defaulting to the COSMAC VIP behavior, and to verify the result against Timendus test 5 (quirks). Each quirk is marked with a `// QUIRK:` comment in `chip8.cpp`.
 
 ---
 
 ## Project Structure
 
-<!-- TODO: update with the real file layout -->
+```
+.
+├── Makefile          # builds build/chip8; links SDL2 via sdl2-config
+├── README.md
+├── src/
+│   ├── chip8.h       # core: machine state and public interface
+│   ├── chip8.cpp     # core: ROM loading, fetch-decode-execute, timers, input state
+│   └── main.cpp      # frontend: SDL2 window, audio, key mapping, 60 Hz main loop
+├── roms/             # ROM files (downloaded collections are gitignored)
+└── build/            # object files and the executable (gitignored)
+```
 
 The emulator is split into two layers:
 
-- **Core (virtual machine):** machine state, ROM loading, and the fetch-decode-execute cycle. It has no knowledge of windows, keyboards, or audio devices.
-- **Frontend (I/O):** renders the 64×32 display to a scaled window, maps keyboard input to the 16 keys, plays the tone, and runs the main loop.
+- **Core (`chip8.h` / `chip8.cpp`):** machine state, ROM loading, and the fetch-decode-execute cycle. It has no knowledge of windows, keyboards, or audio devices; it exposes the display through `get_display_array()` and receives input through `set_key()`.
+- **Frontend (`main.cpp`):** renders the 64×32 display to a scaled SDL2 window, maps keyboard input to the 16 keys, plays the beep, and runs the main loop that drives `cycle()` and `tick_timers()`. It reads the sound state through `is_sound_on()`.
 
 Keeping these separate lets the core be tested without a window.
 
@@ -276,25 +350,44 @@ Keeping these separate lets the core be tested without a window.
 
 Test ROMs used to verify correctness:
 
-| ROM | Verifies |
-|---|---|
-| IBM Logo | Fetch, decode, memory, and drawing (`00E0`, `1NNN`, `6XNN`, `7XNN`, `ANNN`, `DXYN`) |
-| Timendus CHIP-8 Test Suite | Each instruction, flag behavior, quirks, keypad, and sound |
+| ROM | Verifies | Status |
+|---|---|---|
+| Timendus 2: IBM Logo | Fetch, decode, memory, and drawing (`00E0`, `1NNN`, `6XNN`, `7XNN`, `ANNN`, `DXYN`) | ✅ Pass |
+| Timendus 3: Corax+ opcode test | Each instruction's basic behavior | ✅ Pass |
+| Timendus 4: Flags | `VF` carry, borrow, and shift behavior, including flag ordering | ✅ Pass |
+| Timendus 5: Quirks | Which platform's quirks the emulator matches | Not yet run |
+| Timendus 6: Keypad | `EX9E`, `EXA1`, `FX0A` (including wait-for-release) | ✅ Pass |
+| Timendus 7: Beep | Sound timer and audio output (SOS pattern, manual control with key B) | ✅ Pass (see known issues) |
+| Pong (from chip8-roms) | Input, timers, and gameplay end to end | ✅ Playable |
 
 Unrecognized opcodes are reported (with their address) and halt execution, which makes missing or incorrect instructions easy to find.
+
+### Known Issues
+
+- **The first beep after launch can be cut off.** The audio device starts its output stream on the first unpause, which can take longer than a short beep. Later beeps are unaffected. Planned fix: keep the device running and gate the wave with a `std::atomic<bool>`.
+- **Frame timing runs slightly slow.** `SDL_Delay` tends to oversleep, and the overshoot accumulates. Planned fix: deadline-based frame scheduling.
+- **Some games may depend on quirks** (see [Quirks](#quirks-and-compatibility)); behavior differences are being collected for the configurable-quirks work.
+- On macOS, a harmless `IMKCFRunLoopWakeUpReliable` message may be printed at startup by the system's input method framework.
 
 ---
 
 ## Roadmap
 
-- [ ] Window that draws a 64×32 grid
-- [ ] Machine state and ROM loader
-- [ ] Fetch-decode-execute loop
-- [ ] IBM Logo opcodes; logo displays
-- [ ] Remaining opcodes; test suite passes
-- [ ] Keyboard input
-- [ ] Delay and sound timers; audible tone
-- [ ] Configurable quirks
+- [x] Window that draws a 64×32 grid
+- [x] Machine state and ROM loader
+- [x] Fetch-decode-execute loop
+- [x] IBM Logo opcodes; logo displays
+- [x] Remaining opcodes; opcode and flag tests pass
+- [x] Keyboard input
+- [x] Delay and sound timers counting down at 60 Hz
+- [x] Keypad test (Timendus 6) passes
+- [x] Audible tone while `ST > 0`
+- [x] Restart (0) and quit (Esc) keys
+- [ ] Glitch-free first beep (always-running audio with `std::atomic<bool>`)
+- [ ] Deadline-based frame timing
+- [ ] Configurable quirks with COSMAC VIP defaults; quirks test (Timendus 5) passes
+- [ ] Configurable speed and colors
+- [ ] RAII wrapper for SDL resources
 - [ ] _Stretch:_ SUPER-CHIP support
 
 ---
@@ -304,4 +397,6 @@ Unrecognized opcodes are reported (with their address) and halt execution, which
 - Cowgod's CHIP-8 Technical Reference: http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
 - Tobias V. Langhoff, *Guide to making a CHIP-8 emulator*: https://tobiasvl.github.io/blog/write-a-chip-8-emulator/
 - Timendus, CHIP-8 Test Suite: https://github.com/Timendus/chip8-test-suite
+- kripod, CHIP-8 ROM collection: https://github.com/kripod/chip8-roms
+- SDL2 documentation (wiki): https://wiki.libsdl.org/SDL2/FrontPage
 - Joseph Weisbecker, "An Easy Programming System," *BYTE*, December 1978
