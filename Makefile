@@ -1,8 +1,8 @@
 # ── Compiler and flags ─────────────────────────────────────
 CXX      := clang++
-CXXFLAGS := -std=c++20 -Wall -Wextra -MMD -MP -Wpedantic -Wimplicit-fallthrough
+CXXFLAGS := -std=c++20 -Wall -Wextra -MMD -MP -Wpedantic -Wimplicit-fallthrough $(shell sdl2-config --cflags)
 LDFLAGS  :=
-LDLIBS   :=
+LDLIBS   := $(shell sdl2-config --libs)
 
 # ── Directories and output ─────────────────────────────────
 SRC_DIR   := src
