@@ -60,8 +60,8 @@ private:
   std::uint8_t sp{};                   // stack pointer
   std::uint8_t delay_timer{}, sound_timer{};
 
-  //
-  bool halted{ false };
+  // Key states
+  uint8_t waiting_key = {KEY_COUNT};
   std::array<bool, KEY_COUNT> key_state{};
 
   // Random generator
@@ -71,7 +71,8 @@ private:
   // Display array: 64 x 32 (2048)
   Display display_array{};
 
-  // Private function members
+  // Check for halted sate
+  bool halted{ false };
   void halt(const char* reason, std::uint16_t opcode);
 };
   

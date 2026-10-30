@@ -24,17 +24,30 @@ bool Chip8::load_rom(const std::string& path) {
   std::uintmax_t max_bytes = MEMORY_SIZE - START_ADDRESS;
   std::error_code ec;
   std::uintmax_t f_size = std::filesystem::file_size(path, ec);
+  
+  // 3. Error Checks
   if (ec) {
     std::cerr << "invalid path: " << path << "error: " << ec.message() << '\n';
     return false;
   }
+
+  if (f_size == 0) {
+    std::cerr << "empty file: " << f_size << '\n';
+    return false;
+  }
+
   if (max_bytes < f_size) {
     std::cerr<< "file exceeds memory capacity: " << f_size << '\n';
     return false;
   }  
     
-  // 3. Read in one bulk operation instead of byte by byte
+  // 4. Read in one bulk operation instead of byte by byte
   istrm.read(reinterpret_cast<char*>(memory + START_ADDRESS), static_cast<std::streamsize>(f_size));
+ 
+  if (istrm.gcount() != static_cast<std::streamsize>(f_size)) {
+    std::cerr << "input stream could not read the whole file" << '\n';
+    return false;
+  }
 
   return true;
 }
@@ -71,6 +84,11 @@ void Chip8::cycle() {
   // 3. Execute
   switch (family_nib) {
     case 0:
+      switch (NNN) {
+        case 0x000:
+          break; // ignore
+      }
+
       switch (NN) {
         case 0xE0:
           display_array.fill(false);
@@ -137,14 +155,17 @@ void Chip8::cycle() {
           V[X] = V[Y];
           break;
 
+        // QUIRK: Leaves VF unchanged; original resets VF to 0
         case 1: 
           V[X] |= V[Y];
           break;
 
+        // QUIRK: Leaves VF unchanged; original resets VF to 0
         case 2:
           V[X] &= V[Y];
           break;
 
+        // QUIRK: Leaves VF unchanged; original resets VF to 0
         case 3:
           V[X] ^= V[Y];
           break;
@@ -206,9 +227,9 @@ void Chip8::cycle() {
       I = NNN;
       break;
 
-    // QUIRK: COSMAC VIP jumps to NNN + V0; Chip-48 jumpts to XNN + VX
+    // QUIRK: COSMAC VIP jumps to NNN + V0; Chip-48 jumps to XNN + VX
     case 0xB:
-      pc = NNN + V[0]; // QUIRK:
+      pc = NNN + V[0];
       break;
 
     case 0xC: {
@@ -267,18 +288,25 @@ void Chip8::cycle() {
           break;
         
         case 0x0A: {
-          bool found = false;
-          for (std::size_t i = 0; i < key_state.size(); ++i) {
-            if (key_state[i]) {
-              V[X] = static_cast<std::uint8_t>(i);
-              found = true;
-              break;
+          if (waiting_key == KEY_COUNT) {
+            // Phase 1: look for a press
+            for (std::size_t i = 0; i < key_state.size(); ++i) {
+              if (key_state[i]) {
+                waiting_key = i;
+                break;
+              }
             }
+            pc -= 2;
+          } else if (key_state[waiting_key]){
+            // Phase 2: key still held, keep waiting
+            pc -= 2;
+          } else {
+            // Key released: done 
+            V[X] = waiting_key;
+            waiting_key = KEY_COUNT;
           }
-          if (!found) pc -= 2;
-          
           break;
-          }
+        }
 
         case 0x15:
           delay_timer = V[X];
