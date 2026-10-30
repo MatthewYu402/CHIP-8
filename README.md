@@ -352,13 +352,13 @@ Test ROMs used to verify correctness:
 
 | ROM | Verifies | Status |
 |---|---|---|
-| Timendus 2: IBM Logo | Fetch, decode, memory, and drawing (`00E0`, `1NNN`, `6XNN`, `7XNN`, `ANNN`, `DXYN`) | ✅ Pass |
-| Timendus 3: Corax+ opcode test | Each instruction's basic behavior | ✅ Pass |
-| Timendus 4: Flags | `VF` carry, borrow, and shift behavior, including flag ordering | ✅ Pass |
+| Timendus 2: IBM Logo | Fetch, decode, memory, and drawing (`00E0`, `1NNN`, `6XNN`, `7XNN`, `ANNN`, `DXYN`) | Pass |
+| Timendus 3: Corax+ opcode test | Each instruction's basic behavior | Pass |
+| Timendus 4: Flags | `VF` carry, borrow, and shift behavior, including flag ordering | Pass |
 | Timendus 5: Quirks | Which platform's quirks the emulator matches | Not yet run |
-| Timendus 6: Keypad | `EX9E`, `EXA1`, `FX0A` (including wait-for-release) | ✅ Pass |
-| Timendus 7: Beep | Sound timer and audio output (SOS pattern, manual control with key B) | ✅ Pass (see known issues) |
-| Pong (from chip8-roms) | Input, timers, and gameplay end to end | ✅ Playable |
+| Timendus 6: Keypad | `EX9E`, `EXA1`, `FX0A` (including wait-for-release) | Pass |
+| Timendus 7: Beep | Sound timer and audio output (SOS pattern, manual control with key B) | Pass (see known issues) |
+| Pong (from chip8-roms) | Input, timers, and gameplay end to end | Playable |
 
 Unrecognized opcodes are reported (with their address) and halt execution, which makes missing or incorrect instructions easy to find.
 
