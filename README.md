@@ -2,7 +2,7 @@
 
 An emulator for **CHIP-8**, the interpreted virtual machine created in the 1970s for hobbyist computers. Give it a CHIP-8 ROM, and it reproduces the behavior of the original machine closely enough to run classic games like Pong, Breakout, and Space Invaders.
 
-<!-- TODO: add a screenshot or GIF of a game running -->
+<img width="640" height="373" alt="pong" src="https://github.com/user-attachments/assets/576b5b32-f4ae-4f3b-bb37-bdeb4a80abf5" />
 
 ---
 
