@@ -404,5 +404,10 @@ void Chip8::set_key(std::size_t index, bool pressed) {
     }
 
     key_state[index] = pressed;
-  }
+}
+
+void Chip8::tick_timers() {
+  if (delay_timer > 0) delay_timer -= 1;
+  if (sound_timer > 0) sound_timer -= 1;
+}
 

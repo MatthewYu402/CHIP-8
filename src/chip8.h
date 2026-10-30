@@ -22,6 +22,7 @@ public:
   const Display& get_display_array() const { return display_array; }
   bool is_halted() const { return halted; }
   void set_key(std::size_t index, bool pressed);
+  void tick_timers();
 
 private:
   // Compile-time constants
