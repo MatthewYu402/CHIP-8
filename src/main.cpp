@@ -20,13 +20,39 @@ void print_error(const char *reason, const char *error_message) {
   std::cerr << reason << ": " << "SDL_Error: " << error_message << '\n';
 }
 
-void cleanup(SDL_Window *window, SDL_Renderer *renderer, SDL_Texture *texture) {
+void cleanup(SDL_Window *window, SDL_Renderer *renderer, SDL_Texture *texture, SDL_AudioDeviceID device)
+{
   if (texture) SDL_DestroyTexture(texture);
   if (renderer) SDL_DestroyRenderer(renderer);
   if (window) SDL_DestroyWindow(window);
+  if (device) SDL_CloseAudioDevice(device);
   SDL_Quit();
 }
 
+// Audio
+struct BeepState {
+  int tone_hz {440};
+  std::int16_t volume {3000};
+  int samples_per_cycle {};
+  int phase {};
+};
+
+
+void audio_callback(void* userdata, Uint8* stream, int len) {
+  Sint16* samples = reinterpret_cast<Sint16*>(stream);
+  int count = len / static_cast<int>(sizeof(Sint16)); // 1024 bytes -> 512 samples
+  BeepState* beep = static_cast<BeepState*>(userdata);
+
+  // Place a sample into the buffer
+  for (int i = 0; i < count; ++i) {
+    Sint16 sample = static_cast<Sint16>((beep->phase < beep->samples_per_cycle / 2) ? +beep->volume : -beep->volume);
+    samples[i] = sample;
+    beep->phase += 1;
+    if (beep->phase == beep->samples_per_cycle) beep->phase = 0; 
+  }
+}
+
+// Key Mappings
 int map_key(SDL_Scancode scancode) {
   // Map from QWERTY keyboard to CHIP-8
   switch(scancode) {
@@ -92,6 +118,9 @@ int main(int argc, char *argv[]) {
   constexpr int CYCLES_PER_FRAME = 10;
   constexpr double FRAME_MS = 1000.0 / TARGET_FPS;
 
+  // Audio constants
+  constexpr int SAMPLE_RATE = 44100;
+
   // Colors for screen and texture
   constexpr std::uint32_t COLOR_ON = 0xFFFFFFFF;
   constexpr std::uint32_t COLOR_OFF = 0xFF000000;
@@ -112,22 +141,45 @@ int main(int argc, char *argv[]) {
 
   //print_display(chip8);
 
+  // Beep state lives outside device to outlive everything that uses it
+  BeepState beep;
+
   // The window we'll be rendering to
-  SDL_Window *window = nullptr;
-  SDL_Renderer *renderer = nullptr;
-  SDL_Texture *texture = nullptr;
+  SDL_Window* window = nullptr;
+  SDL_Renderer* renderer = nullptr;
+  SDL_Texture* texture = nullptr;
+  
+  //
+  SDL_AudioSpec want{};
+  want.freq     = SAMPLE_RATE;
+  want.format   = AUDIO_S16SYS;
+  want.channels = 1;
+  want.callback = audio_callback;
+  want.userdata = &beep;
+
+  SDL_AudioSpec have{}; // SDL fills this in
 
   // Initialize SDL
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
     print_error("SDL could not initialize", SDL_GetError());
     return 1;
   }
+
+  // Initialize audio device
+  SDL_AudioDeviceID device = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
+  if (!device)
+  {
+    print_error("SDL count not create audio device", SDL_GetError());
+    return 1;
+  }
+
+  beep.samples_per_cycle = have.freq / beep.tone_hz;
 
   // Create window
   window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
   if (window == nullptr) {
     print_error("Window could not be created", SDL_GetError());
-    cleanup(window, renderer, texture);
+    cleanup(window, renderer, texture, device);
     return 1;
   }
 
@@ -135,7 +187,7 @@ int main(int argc, char *argv[]) {
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
   if (renderer == nullptr) {
     print_error("Renderer could not be created", SDL_GetError());
-    cleanup(window, renderer, texture);
+    cleanup(window, renderer, texture, device);
     return 1;
   }
 
@@ -143,9 +195,11 @@ int main(int argc, char *argv[]) {
   texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, Chip8::DISPLAY_WIDTH, Chip8::DISPLAY_HEIGHT);
   if (!texture) {
     print_error("Texture could not be created", SDL_GetError());
-    cleanup(window, renderer, texture);
+    cleanup(window, renderer, texture, device);
     return 1;
   }
+
+
 
   // Pixels array
   std::array<std::uint32_t, Chip8::DISPLAY_WIDTH * Chip8::DISPLAY_HEIGHT> pixels;
@@ -177,6 +231,8 @@ int main(int argc, char *argv[]) {
 
     chip8.tick_timers(); // timers' one countdown for this slice
 
+    SDL_PauseAudioDevice(device, chip8.is_sound_on() ? 0 : 1);
+
     // Convert display_array (bool) into pixels (RGB Color)
     const auto &display_array = chip8.get_display_array();
     for (std::size_t y = 0; y < Chip8::DISPLAY_HEIGHT; ++y) {
@@ -188,18 +244,18 @@ int main(int argc, char *argv[]) {
 
     if (SDL_UpdateTexture(texture, nullptr, pixels.data(), Chip8::DISPLAY_WIDTH * sizeof(std::uint32_t)) < 0) {
       print_error("Texture was unable to update", SDL_GetError());
-      cleanup(window, renderer, texture);
+      cleanup(window, renderer, texture, device);
       return 1;
     }
     if (SDL_RenderClear(renderer) < 0) {
       print_error("Renderer was unable to clear", SDL_GetError());
-      cleanup(window, renderer, texture);
+      cleanup(window, renderer, texture, device);
       return 1;
     }
 
     if (SDL_RenderCopy(renderer, texture, nullptr, nullptr) < 0) {
       print_error("Renderer was unable to copy", SDL_GetError());
-      cleanup(window, renderer, texture);
+      cleanup(window, renderer, texture, device);
       return 1;
     }
     SDL_RenderPresent(renderer); // The screen's one refresh
@@ -213,7 +269,7 @@ int main(int argc, char *argv[]) {
     }
   }
   // Destroy resources no longer needed
-  cleanup(window, renderer, texture);
+  cleanup(window, renderer, texture, device);
 
   return 0;
 }

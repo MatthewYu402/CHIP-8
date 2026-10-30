@@ -23,6 +23,7 @@ public:
   bool is_halted() const { return halted; }
   void set_key(std::size_t index, bool pressed);
   void tick_timers();
+  bool is_sound_on() const { return sound_timer > 0; }
 
 private:
   // Compile-time constants
