@@ -72,7 +72,7 @@ private:
   // Display array: 64 x 32 (2048)
   Display display_array{};
 
-  // Check for halted sate
+  // Check for halted state
   bool halted{ false };
   void halt(const char* reason, std::uint16_t opcode);
 };

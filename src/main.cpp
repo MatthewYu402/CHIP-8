@@ -3,7 +3,9 @@
 #include <iostream>
 #include <array>
 #include <cstdint>
+#include <cmath>
 
+// For debugging
 void print_display(const Chip8 &chip8) {
   const Chip8::Display &arr = chip8.get_display_array();
   for (std::size_t y = 0; y < Chip8::DISPLAY_HEIGHT; ++y) {
@@ -25,10 +27,70 @@ void cleanup(SDL_Window *window, SDL_Renderer *renderer, SDL_Texture *texture) {
   SDL_Quit();
 }
 
+int map_key(SDL_Scancode scancode) {
+  // Map from QWERTY keyboard to CHIP-8
+  switch(scancode) {
+    case SDL_SCANCODE_1:
+      return 0x1;
+
+    case SDL_SCANCODE_2:
+      return 0x2;
+
+    case SDL_SCANCODE_3:
+      return 0x3;
+
+    case SDL_SCANCODE_4:
+      return 0xC;
+
+    case SDL_SCANCODE_Q:
+      return 0x4;
+
+    case SDL_SCANCODE_W:
+      return 0x5;
+
+    case SDL_SCANCODE_E:
+      return 0x6;
+
+    case SDL_SCANCODE_R:
+      return 0xD;
+
+    case SDL_SCANCODE_A:
+      return 0x7;
+
+    case SDL_SCANCODE_S:
+      return 0x8;
+
+    case SDL_SCANCODE_D:
+      return 0x9;
+
+    case SDL_SCANCODE_F:
+      return 0xE;
+
+    case SDL_SCANCODE_Z:
+      return 0xA;
+
+    case SDL_SCANCODE_X:
+      return 0x0;
+
+    case SDL_SCANCODE_C:
+      return 0xB;
+
+    case SDL_SCANCODE_V:
+      return 0xF;
+
+    default:
+      return -1;
+  }
+}
+
 int main(int argc, char *argv[]) {
   // Screen constants
-  constexpr int SCREEN_WIDTH = 640;
-  constexpr int SCREEN_HEIGHT = 320;
+  constexpr int SCALE = 15;
+  constexpr int SCREEN_WIDTH = Chip8::DISPLAY_WIDTH * SCALE;
+  constexpr int SCREEN_HEIGHT = Chip8::DISPLAY_HEIGHT * SCALE;
+  constexpr double TARGET_FPS = 60.0;
+  constexpr int CYCLES_PER_FRAME = 10;
+  constexpr double FRAME_MS = 1000.0 / TARGET_FPS;
 
   // Colors for screen and texture
   constexpr std::uint32_t COLOR_ON = 0xFFFFFFFF;
@@ -40,6 +102,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Construct Chip8 object
   Chip8 chip8;
   if (!chip8.load_rom(argv[1])) return 1;
 
@@ -47,11 +110,7 @@ int main(int argc, char *argv[]) {
   // chip8.dump_memory(0x050, 80);
   // chip8.dump_memory(0x200, 132);
 
-  for (std::size_t i = 0; i < 5000; ++i) {
-    chip8.cycle();
-  }
-
-  print_display(chip8);
+  //print_display(chip8);
 
   // The window we'll be rendering to
   SDL_Window *window = nullptr;
@@ -92,17 +151,31 @@ int main(int argc, char *argv[]) {
   std::array<std::uint32_t, Chip8::DISPLAY_WIDTH * Chip8::DISPLAY_HEIGHT> pixels;
 
   // Loop until quit
-  SDL_Event e;
+  SDL_Event event;
   bool quit = false;
   while (!quit) {
+    std::uint64_t start = SDL_GetPerformanceCounter();
     // Poll Events
-    while (SDL_PollEvent(&e))
+    while (SDL_PollEvent(&event))
     {
-      if (e.type == SDL_QUIT)
+      if (event.type == SDL_QUIT)
       {
         quit = true;
       }
+
+      if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+        SDL_Scancode scancode = event.key.keysym.scancode;
+        int index = map_key(scancode);
+        if (index != -1) chip8.set_key(index, event.type == SDL_KEYDOWN);
+      }
     }
+
+    // CPU's share of work for this frame
+    for (int i = 0; i < CYCLES_PER_FRAME; ++i) { 
+      chip8.cycle();
+    }
+
+    chip8.tick_timers(); // timers' one countdown for this slice
 
     // Convert display_array (bool) into pixels (RGB Color)
     const auto &display_array = chip8.get_display_array();
@@ -129,8 +202,15 @@ int main(int argc, char *argv[]) {
       cleanup(window, renderer, texture);
       return 1;
     }
-    SDL_RenderPresent(renderer);
-    SDL_Delay(16);
+    SDL_RenderPresent(renderer); // The screen's one refresh
+
+    // Wait: cap the frame rate (target 60fps = ~16.67 ms per frame)
+    std::uint64_t end = SDL_GetPerformanceCounter();
+    double elapsed_ms = (end - start) / static_cast<double>(SDL_GetPerformanceFrequency()) * 1000.0;
+
+    if (elapsed_ms < FRAME_MS) {
+      SDL_Delay(static_cast<uint32_t>(std::floor(FRAME_MS - elapsed_ms)));
+    }
   }
   // Destroy resources no longer needed
   cleanup(window, renderer, texture);

@@ -27,7 +27,7 @@ bool Chip8::load_rom(const std::string& path) {
   
   // 3. Error Checks
   if (ec) {
-    std::cerr << "invalid path: " << path << "error: " << ec.message() << '\n';
+    std::cerr << "invalid path: " << path << " error: " << ec.message() << '\n';
     return false;
   }
 
@@ -53,7 +53,7 @@ bool Chip8::load_rom(const std::string& path) {
 }
 
 void Chip8::cycle() {
-  if (halted) return; 
+  if (is_halted()) return; 
 
   // 0.1 Pre-fetch check
   if (pc + 1 >= MEMORY_SIZE) {
@@ -100,8 +100,7 @@ void Chip8::cycle() {
 
         default:
           halt("unknown opcode", opcode);
-          break;
-          
+          break; 
       }
 
       break;
@@ -150,17 +149,17 @@ void Chip8::cycle() {
           V[X] = V[Y];
           break;
 
-        // QUIRK: Leaves VF unchanged; original resets VF to 0
+        // QUIRK: Leave VF unchanged; original resets VF to 0
         case 1: 
           V[X] |= V[Y];
           break;
 
-        // QUIRK: Leaves VF unchanged; original resets VF to 0
+        // QUIRK: Leave VF unchanged; original resets VF to 0
         case 2:
           V[X] &= V[Y];
           break;
 
-        // QUIRK: Leaves VF unchanged; original resets VF to 0
+        // QUIRK: Leave VF unchanged; original resets VF to 0
         case 3:
           V[X] ^= V[Y];
           break;
@@ -354,7 +353,7 @@ void Chip8::cycle() {
       break;
 
     default:
-      halt("unknown opcode", 0);
+      halt("unknown opcode", opcode);
       break;
   }
 }
