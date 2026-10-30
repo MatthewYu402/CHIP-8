@@ -84,17 +84,12 @@ void Chip8::cycle() {
   // 3. Execute
   switch (family_nib) {
     case 0:
-      switch (NNN) {
-        case 0x000:
-          break; // ignore
-      }
-
-      switch (NN) {
-        case 0xE0:
+      switch (opcode) {
+       case 0x00E0:
           display_array.fill(false);
           break;
 
-        case 0xEE:
+        case 0x00EE:
           if (sp == 0) {
             halt("return with empty stack", opcode);
             break;
