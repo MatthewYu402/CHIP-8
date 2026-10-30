@@ -219,6 +219,25 @@ int main(int argc, char *argv[]) {
 
       if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
         SDL_Scancode scancode = event.key.keysym.scancode;
+
+        // Emulator Controls (not a part of CHIP-8 keypad): key-down only
+        if (event.type == SDL_KEYDOWN) {
+          if (scancode == SDL_SCANCODE_ESCAPE) {
+            quit = true;
+            continue;
+          }
+
+          if (scancode == SDL_SCANCODE_0 && event.key.repeat == 0) {
+            chip8 = Chip8{};
+            if (!chip8.load_rom(argv[1])) {
+              std::cerr << "failed to reload ROM: " << argv[1] << '\n';
+              quit = true;
+            }
+            continue;
+          }
+        }
+
+        // CHIP-8 keypad
         int index = map_key(scancode);
         if (index != -1) chip8.set_key(index, event.type == SDL_KEYDOWN);
       }
